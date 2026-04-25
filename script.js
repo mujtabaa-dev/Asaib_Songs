@@ -4,35 +4,35 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // إعداد Supabase
 const supabaseUrl = 'https://kirfkztiymzpcwoskiic.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpcmZrenRpeW16cGN3b3NraWljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNDA2MDYsImV4cCI6MjA5MjcxNjYwNn0.DjpECA_pZLfJfIGK8EcKk2nfKW3KUrlEU8v6jvXrzto';
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // تسجيل الدخول
-document.addEventListener('DOMContentLoaded', () => {
-    const loginForm = document.getElementById('login-form');
-    const errorMsg = document.getElementById('error-msg');
+document.getElementById('login-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
 
-    if (loginForm) {
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+    const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+    });
 
-            if (username === 'admin' && password === 'gika123') {
-                localStorage.setItem('isLoggedIn', 'true');
-                window.location.href = 'admin.html';
-            } else {
-                errorMsg.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة';
-            }
-        });
-    }
-
-    // التحقق إذا كان المستخدم مسجل الدخول عند فتح admin.html
-    if (window.location.pathname === '/admin.html') {
-        if (localStorage.getItem('isLoggedIn') !== 'true') {
-            window.location.href = 'login.html';
-        }
+    if (error) {
+        document.getElementById('error-msg').textContent = 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
+    } else {
+        localStorage.setItem('isLoggedIn', 'true');
+        window.location.href = 'admin.html';
     }
 });
+
+// التحقق من تسجيل الدخول عند فتح admin.html
+if (window.location.pathname === '/admin.html') {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (!user) {
+        window.location.href = 'login.html';
+    }
+}
 
 // إضافة أغنية جديدة
 document.getElementById('add-song-btn')?.addEventListener('click', async () => {
