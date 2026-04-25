@@ -4,34 +4,73 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // إعداد Supabase
 const supabaseUrl = 'https://kirfkztiymzpcwoskiic.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpcmZrenRpeW16cGN3b3NraWljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNDA2MDYsImV4cCI6MjA5MjcxNjYwNn0.DjpECA_pZLfJfIGK8EcKk2nfKW3KUrlEU8v6jvXrzto';
-
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// دالة لعرض رسالة خطأ
+function showError(message) {
+    const errorMsg = document.getElementById('error-msg');
+    if (errorMsg) {
+        errorMsg.textContent = message;
+        errorMsg.style.display = 'block';
+    }
+}
+
+// دالة لاخفاء رسالة خطأ
+function hideError() {
+    const errorMsg = document.getElementById('error-msg');
+    if (errorMsg) {
+        errorMsg.style.display = 'none';
+    }
+}
 
 // تسجيل الدخول
 document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    hideError(); // اخفاء أي رسالة خطأ سابقة
+
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-    });
+    // التحقق من الفراغ
+    if (!email || !password) {
+        showError('الرجاء ملء جميع الحقول');
+        return;
+    }
 
-    if (error) {
-        document.getElementById('error-msg').textContent = 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
-    } else {
-        localStorage.setItem('isLoggedIn', 'true');
-        window.location.href = 'admin.html';
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error) {
+            console.error("Login error:", error);
+            showError('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+        } else {
+            console.log("Login successful:", data);
+            localStorage.setItem('isLoggedIn', 'true');
+            window.location.href = 'admin.html';
+        }
+    } catch (err) {
+        console.error("Unexpected error:", err);
+        showError('حدث خطأ غير متوقع');
     }
 });
 
 // التحقق من تسجيل الدخول عند فتح admin.html
 if (window.location.pathname === '/admin.html') {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (!user) {
-        window.location.href = 'login.html';
-    }
+    const checkAuth = async () => {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        if (error || !user) {
+            console.error("Not authenticated:", error);
+            window.location.href = 'login.html';
+        } else {
+            console.log("User is authenticated:", user);
+        }
+    };
+
+    checkAuth();
 }
 
 // إضافة أغنية جديدة
@@ -86,69 +125,72 @@ async function displaySongs() {
 
     if (!songsList && !adminSongsList) return;
 
-    const { data, error } = await supabase
-        .from('songs')
-        .select('*');
+    try {
+        const { data, error } = await supabase
+            .from('songs')
+            .select('*');
 
-    if (error) {
+        if (error) throw error;
+
+        if (songsList) {
+            songsList.innerHTML = '';
+            data.forEach(song => {
+                const songCard = document.createElement('div');
+                songCard.className = 'song-card';
+                songCard.innerHTML = `
+                    <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
+                    <div class="song-info">
+                        <h3 class="song-title">${song.name}</h3>
+                        <div class="song-controls">
+                            <audio controls>
+                                <source src="${song.audioUrl}" type="audio/mpeg">
+                            </audio>
+                            <a href="${song.audioUrl}" download><i class="fas fa-download"></i> تنزيل</a>
+                        </div>
+                    </div>
+                `;
+                songsList.appendChild(songCard);
+            });
+        }
+
+        if (adminSongsList) {
+            adminSongsList.innerHTML = '';
+            data.forEach(song => {
+                const songCard = document.createElement('div');
+                songCard.className = 'song-card';
+                songCard.innerHTML = `
+                    <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
+                    <div class="song-info">
+                        <h3 class="song-title">${song.name}</h3>
+                        <div class="song-controls">
+                            <button class="btn" onclick="deleteSong('${song.id}')"><i class="fas fa-trash"></i> حذف</button>
+                        </div>
+                    </div>
+                `;
+                adminSongsList.appendChild(songCard);
+            });
+        }
+    } catch (error) {
         console.error("Error fetching songs: ", error);
-        return;
-    }
-
-    if (songsList) {
-        songsList.innerHTML = '';
-        data.forEach(song => {
-            const songCard = document.createElement('div');
-            songCard.className = 'song-card';
-            songCard.innerHTML = `
-                <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
-                <div class="song-info">
-                    <h3 class="song-title">${song.name}</h3>
-                    <div class="song-controls">
-                        <audio controls>
-                            <source src="${song.audioUrl}" type="audio/mpeg">
-                        </audio>
-                        <a href="${song.audioUrl}" download><i class="fas fa-download"></i> تنزيل</a>
-                    </div>
-                </div>
-            `;
-            songsList.appendChild(songCard);
-        });
-    }
-
-    if (adminSongsList) {
-        adminSongsList.innerHTML = '';
-        data.forEach(song => {
-            const songCard = document.createElement('div');
-            songCard.className = 'song-card';
-            songCard.innerHTML = `
-                <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
-                <div class="song-info">
-                    <h3 class="song-title">${song.name}</h3>
-                    <div class="song-controls">
-                        <button class="btn" onclick="deleteSong('${song.id}')"><i class="fas fa-trash"></i> حذف</button>
-                    </div>
-                </div>
-            `;
-            adminSongsList.appendChild(songCard);
-        });
     }
 }
 
 // حذف أغنية
 async function deleteSong(songId) {
     if (confirm('هل أنت متأكد من حذف هذه الأغنية؟')) {
-        const { error } = await supabase
-            .from('songs')
-            .delete()
-            .eq('id', songId);
+        try {
+            const { error } = await supabase
+                .from('songs')
+                .delete()
+                .eq('id', songId);
 
-        if (error) {
-            console.error("Error deleting song: ", error);
-            alert('حدث خطأ أثناء حذف الأغنية');
-        } else {
+            if (error) throw error;
+
             alert('تم حذف الأغنية بنجاح!');
             location.reload();
+        } catch (error) {
+            console.error("Error deleting song: ", error);
+            alert('حدث خطأ أثناء حذف الأغنية');
         }
     }
 }
