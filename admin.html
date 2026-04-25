@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gika | لوحة الإدارة</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1><i class="fas fa-cog"></i> لوحة الإدارة</h1>
+            <p>إضافة وحذف وتعديل الأغاني</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section id="add-song" class="card">
+            <h2>أضف أغنية جديدة</h2>
+            <div class="form-group">
+                <label for="song-name">اسم الأغنية</label>
+                <input type="text" id="song-name" placeholder="أدخل اسم الأغنية">
+            </div>
+            <div class="form-group">
+                <label for="song-image">ارفع صورة الأغنية</label>
+                <input type="file" id="song-image" accept="image/*">
+            </div>
+            <div class="form-group">
+                <label for="song-audio">ارفع ملف الأغنية</label>
+                <input type="file" id="song-audio" accept="audio/*">
+            </div>
+            <button id="add-song-btn" class="btn"><i class="fas fa-plus"></i> إضافة</button>
+        </section>
+
+        <section id="songs-list">
+            <h2>قائمة الأغاني</h2>
+            <div id="admin-songs-list"></div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>جميع الحقوق محفوظة © mujtaba muhamed</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
