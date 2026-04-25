@@ -4,76 +4,37 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // إعداد Supabase
 const supabaseUrl = 'https://kirfkztiymzpcwoskiic.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpcmZrenRpeW16cGN3b3NraWljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNDA2MDYsImV4cCI6MjA5MjcxNjYwNn0.DjpECA_pZLfJfIGK8EcKk2nfKW3KUrlEU8v6jvXrzto';
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// دالة لعرض رسالة خطأ
-function showError(message) {
-    const errorMsg = document.getElementById('error-msg');
-    if (errorMsg) {
-        errorMsg.textContent = message;
-        errorMsg.style.display = 'block';
-    }
-}
-
-// دالة لاخفاء رسالة خطأ
-function hideError() {
-    const errorMsg = document.getElementById('error-msg');
-    if (errorMsg) {
-        errorMsg.style.display = 'none';
-    }
-}
-
-// تسجيل الدخول
+// ─── تسجيل الدخول ────────────────────────────────────────────────────────────
 document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    hideError(); // اخفاء أي رسالة خطأ سابقة
-
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
 
-    // التحقق من الفراغ
-    if (!email || !password) {
-        showError('الرجاء ملء جميع الحقول');
-        return;
-    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-    try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password
-        });
-
-        if (error) {
-            console.error("Login error:", error);
-            showError('البريد الإلكتروني أو كلمة المرور غير صحيحة');
-        } else {
-            console.log("Login successful:", data);
-            localStorage.setItem('isLoggedIn', 'true');
-            window.location.href = 'admin.html';
-        }
-    } catch (err) {
-        console.error("Unexpected error:", err);
-        showError('حدث خطأ غير متوقع');
+    if (error) {
+        document.getElementById('error-msg').textContent = 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
+    } else {
+        window.location.href = 'admin.html';
     }
 });
 
-// التحقق من تسجيل الدخول عند فتح admin.html
-if (window.location.pathname === '/admin.html') {
-    const checkAuth = async () => {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        
-        if (error || !user) {
-            console.error("Not authenticated:", error);
-            window.location.href = 'login.html';
-        } else {
-            console.log("User is authenticated:", user);
-        }
-    };
-
-    checkAuth();
+// ─── حماية صفحة الإدارة ──────────────────────────────────────────────────────
+// FIX: old check used window.location.pathname === '/admin.html'
+//      which fails on local file:// URLs and many hosting setups.
+//      Using .includes('admin.html') is more robust.
+if (window.location.href.includes('admin.html')) {
+    // top-level await is allowed inside ES modules (type="module")
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        window.location.href = 'login.html';
+    }
 }
 
-// إضافة أغنية جديدة
+// ─── إضافة أغنية جديدة ───────────────────────────────────────────────────────
 document.getElementById('add-song-btn')?.addEventListener('click', async () => {
     const name = document.getElementById('song-name').value;
     const audioFile = document.getElementById('song-audio').files[0];
@@ -86,114 +47,118 @@ document.getElementById('add-song-btn')?.addEventListener('click', async () => {
 
     try {
         // رفع الصورة
-        const { data: imageData, error: imageError } = await supabase.storage
+        const { error: imageError } = await supabase.storage
             .from('images')
-            .upload(`${imageFile.name}`, imageFile);
-
+            .upload(imageFile.name, imageFile);
         if (imageError) throw imageError;
 
         const imageUrl = `${supabaseUrl}/storage/v1/object/public/images/${imageFile.name}`;
 
         // رفع الأغنية
-        const { data: audioData, error: audioError } = await supabase.storage
+        const { error: audioError } = await supabase.storage
             .from('audio')
-            .upload(`${audioFile.name}`, audioFile);
-
+            .upload(audioFile.name, audioFile);
         if (audioError) throw audioError;
 
         const audioUrl = `${supabaseUrl}/storage/v1/object/public/audio/${audioFile.name}`;
 
         // حفظ في قاعدة البيانات
-        const { data, error } = await supabase
+        const { error } = await supabase
             .from('songs')
             .insert([{ name, imageUrl, audioUrl }]);
-
         if (error) throw error;
 
         alert('تم إضافة الأغنية بنجاح!');
         location.reload();
-    } catch (error) {
-        console.error("Error adding song: ", error);
+    } catch (err) {
+        console.error('Error adding song:', err);
         alert('حدث خطأ أثناء رفع الأغنية');
     }
 });
 
-// عرض الأغاني
+// ─── عرض الأغاني ─────────────────────────────────────────────────────────────
 async function displaySongs() {
-    const songsList = document.getElementById('songs-list');
-    const adminSongsList = document.getElementById('admin-songs-list');
+    const songsList     = document.getElementById('songs-list');       // index.html
+    const adminSongsList = document.getElementById('admin-songs-list'); // admin.html
 
     if (!songsList && !adminSongsList) return;
 
-    try {
-        const { data, error } = await supabase
-            .from('songs')
-            .select('*');
+    const { data, error } = await supabase.from('songs').select('*');
+    if (error) {
+        console.error('Error fetching songs:', error);
+        return;
+    }
 
-        if (error) throw error;
-
-        if (songsList) {
-            songsList.innerHTML = '';
-            data.forEach(song => {
-                const songCard = document.createElement('div');
-                songCard.className = 'song-card';
-                songCard.innerHTML = `
-                    <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
-                    <div class="song-info">
-                        <h3 class="song-title">${song.name}</h3>
-                        <div class="song-controls">
-                            <audio controls>
-                                <source src="${song.audioUrl}" type="audio/mpeg">
-                            </audio>
-                            <a href="${song.audioUrl}" download><i class="fas fa-download"></i> تنزيل</a>
-                        </div>
+    // عرض في الصفحة الرئيسية
+    if (songsList) {
+        songsList.innerHTML = '';
+        data.forEach(song => {
+            const card = document.createElement('div');
+            card.className = 'song-card';
+            card.innerHTML = `
+                <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
+                <div class="song-info">
+                    <h3 class="song-title">${song.name}</h3>
+                    <div class="song-controls">
+                        <audio controls>
+                            <source src="${song.audioUrl}" type="audio/mpeg">
+                        </audio>
+                        <a href="${song.audioUrl}" download>
+                            <i class="fas fa-download"></i> تنزيل
+                        </a>
                     </div>
-                `;
-                songsList.appendChild(songCard);
-            });
-        }
+                </div>
+            `;
+            songsList.appendChild(card);
+        });
+    }
 
-        if (adminSongsList) {
-            adminSongsList.innerHTML = '';
-            data.forEach(song => {
-                const songCard = document.createElement('div');
-                songCard.className = 'song-card';
-                songCard.innerHTML = `
-                    <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
-                    <div class="song-info">
-                        <h3 class="song-title">${song.name}</h3>
-                        <div class="song-controls">
-                            <button class="btn" onclick="deleteSong('${song.id}')"><i class="fas fa-trash"></i> حذف</button>
-                        </div>
+    // عرض في لوحة الإدارة
+    if (adminSongsList) {
+        adminSongsList.innerHTML = '';
+        data.forEach(song => {
+            const card = document.createElement('div');
+            card.className = 'song-card';
+            // FIX: onclick="deleteSong(...)" requires deleteSong on window.
+            //      Since this file is a module, functions are not auto-global.
+            //      We assign it to window below.
+            card.innerHTML = `
+                <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
+                <div class="song-info">
+                    <h3 class="song-title">${song.name}</h3>
+                    <div class="song-controls">
+                        <button class="btn" onclick="window.deleteSong('${song.id}')">
+                            <i class="fas fa-trash"></i> حذف
+                        </button>
                     </div>
-                `;
-                adminSongsList.appendChild(songCard);
-            });
-        }
-    } catch (error) {
-        console.error("Error fetching songs: ", error);
+                </div>
+            `;
+            adminSongsList.appendChild(card);
+        });
     }
 }
 
-// حذف أغنية
+// ─── حذف أغنية ───────────────────────────────────────────────────────────────
 async function deleteSong(songId) {
-    if (confirm('هل أنت متأكد من حذف هذه الأغنية؟')) {
-        try {
-            const { error } = await supabase
-                .from('songs')
-                .delete()
-                .eq('id', songId);
+    if (!confirm('هل أنت متأكد من حذف هذه الأغنية؟')) return;
 
-            if (error) throw error;
+    const { error } = await supabase
+        .from('songs')
+        .delete()
+        .eq('id', songId);
 
-            alert('تم حذف الأغنية بنجاح!');
-            location.reload();
-        } catch (error) {
-            console.error("Error deleting song: ", error);
-            alert('حدث خطأ أثناء حذف الأغنية');
-        }
+    if (error) {
+        console.error('Error deleting song:', error);
+        alert('حدث خطأ أثناء حذف الأغنية');
+    } else {
+        alert('تم حذف الأغنية بنجاح!');
+        location.reload();
     }
 }
 
-// عرض الأغاني عند تحميل الصفحة
+// FIX: ES modules don't expose functions to global scope automatically.
+//      Expose deleteSong so inline onclick handlers in admin.html can call it.
+window.deleteSong = deleteSong;
+
+// ─── تشغيل العرض عند التحميل ─────────────────────────────────────────────────
 displaySongs();
