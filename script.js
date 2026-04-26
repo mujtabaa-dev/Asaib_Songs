@@ -49,33 +49,39 @@ document.getElementById('add-song-btn')?.addEventListener('click', async () => {
     }
 
     try {
+        // FIX: prefix with timestamp to avoid "duplicate file name" rejection from Supabase
+        const timestamp = Date.now();
+        const imagePath = `${timestamp}_${imageFile.name}`;
+        const audioPath  = `${timestamp}_${audioFile.name}`;
+
         // رفع الصورة
         const { error: imageError } = await supabase.storage
             .from('images')
-            .upload(imageFile.name, imageFile);
-        if (imageError) throw imageError;
+            .upload(imagePath, imageFile, { upsert: true });
+        if (imageError) throw new Error(`خطأ في رفع الصورة: ${imageError.message}`);
 
-        const imageUrl = `${supabaseUrl}/storage/v1/object/public/images/${imageFile.name}`;
+        const imageUrl = `${supabaseUrl}/storage/v1/object/public/images/${imagePath}`;
 
         // رفع الأغنية
         const { error: audioError } = await supabase.storage
             .from('audio')
-            .upload(audioFile.name, audioFile);
-        if (audioError) throw audioError;
+            .upload(audioPath, audioFile, { upsert: true });
+        if (audioError) throw new Error(`خطأ في رفع الصوت: ${audioError.message}`);
 
-        const audioUrl = `${supabaseUrl}/storage/v1/object/public/audio/${audioFile.name}`;
+        const audioUrl = `${supabaseUrl}/storage/v1/object/public/audio/${audioPath}`;
 
         // حفظ في قاعدة البيانات
-        const { error } = await supabase
+        const { error: dbError } = await supabase
             .from('songs')
             .insert([{ name, imageUrl, audioUrl }]);
-        if (error) throw error;
+        if (dbError) throw new Error(`خطأ في قاعدة البيانات: ${dbError.message}`);
 
         alert('تم إضافة الأغنية بنجاح!');
         location.reload();
     } catch (err) {
         console.error('Error adding song:', err);
-        alert('حدث خطأ أثناء رفع الأغنية');
+        // FIX: show the real error message so you know exactly what failed
+        alert(`حدث خطأ:\n${err.message}`);
     }
 });
 
