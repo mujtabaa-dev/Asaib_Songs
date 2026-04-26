@@ -11,13 +11,14 @@
     <header>
         <div class="container">
             <h1><i class="fas fa-cog"></i> لوحة الإدارة</h1>
-            <p>إضافة وحذف وتعديل القصائد</p>
+            <p>إضافة وحذف وتعديل الأغاني</p>
         </div>
     </header>
 
-    <main class="container">
+    <!-- Hidden by default — script.js reveals it only after Supabase confirms a valid session -->
+    <main class="container" id="admin-main" style="display:none">
         <section id="add-song" class="card">
-            <h2>أضف قصيدة جديدة</h2>
+            <h2>قصائد عصائب اهل الحق</h2>
             <div class="form-group">
                 <label for="song-name">اسم القصيدة</label>
                 <input type="text" id="song-name" placeholder="أدخل اسم الأغنية">
@@ -33,7 +34,10 @@
             <button id="add-song-btn" class="btn"><i class="fas fa-plus"></i> إضافة</button>
         </section>
 
-        <section id="songs-list">
+        <!-- FIX: was id="songs-list" which collided with the same ID used in script.js
+             for the public songs grid. Renamed to "songs-section" to avoid the conflict.
+             The actual grid div inside keeps id="admin-songs-list" which is what the script reads. -->
+        <section id="songs-section">
             <h2>قائمة القصائد</h2>
             <div id="admin-songs-list"></div>
         </section>
@@ -45,6 +49,7 @@
         </div>
     </footer>
 
-    <script src="script.js"></script>
+    <!-- FIX: type="module" required because script.js uses ES module import -->
+    <script type="module" src="script.js"></script>
 </body>
 </html>
