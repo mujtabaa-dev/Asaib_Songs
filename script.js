@@ -23,14 +23,17 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
 });
 
 // ─── حماية صفحة الإدارة ──────────────────────────────────────────────────────
-// FIX: old check used window.location.pathname === '/admin.html'
-//      which fails on local file:// URLs and many hosting setups.
-//      Using .includes('admin.html') is more robust.
+// The <main> in admin.html starts as display:none.
+// We only reveal it AFTER Supabase confirms a live session.
+// This means: no JS = stays hidden, wrong/no session = redirect immediately.
 if (window.location.href.includes('admin.html')) {
-    // top-level await is allowed inside ES modules (type="module")
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-        window.location.href = 'login.html';
+        // Not authenticated — send to login, keep page blank
+        window.location.replace('login.html');
+    } else {
+        // Authenticated — reveal the admin UI
+        document.getElementById('admin-main').style.display = '';
     }
 }
 
