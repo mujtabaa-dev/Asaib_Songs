@@ -10,38 +10,60 @@
 <body>
     <header>
         <div class="container">
-            <h1><i class="fas fa-cog"></i> لوحة الإدارة</h1>
-            <p>إضافة وحذف وتعديل الأغاني</p>
+            <h1><i class="fas fa-user-shield"></i> لوحة تحكم الإدارة</h1>
+            <p>إدارة محتوى قصائد عصائب أهل الحق</p>
         </div>
     </header>
 
-    <!-- Hidden by default — script.js reveals it only after Supabase confirms a valid session -->
     <main class="container" id="admin-main" style="display:none">
+        
         <section id="add-song" class="card">
-            <h2>قصائد عصائب اهل الحق</h2>
+            <h2><i class="fas fa-plus-circle"></i> إضافة قصيدة جديدة</h2>
             <div class="form-group">
                 <label for="song-name">اسم القصيدة</label>
-                <input type="text" id="song-name" placeholder="أدخل اسم الأغنية">
+                <input type="text" id="song-name" placeholder="مثال: حشد الله">
             </div>
             <div class="form-group">
-                <label for="song-image">ارفع صورة القصيدة</label>
+                <label for="song-image">صورة الغلاف</label>
                 <input type="file" id="song-image" accept="image/*">
             </div>
             <div class="form-group">
-                <label for="song-audio">ارفع ملف القصيدة</label>
+                <label for="song-audio">الملف الصوتي (MP3)</label>
                 <input type="file" id="song-audio" accept="audio/*">
             </div>
-            <button id="add-song-btn" class="btn"><i class="fas fa-plus"></i> إضافة</button>
+            <button id="add-song-btn" class="btn primary-btn">
+                <i class="fas fa-upload"></i> رفع القصيدة الآن
+            </button>
         </section>
 
-        <!-- FIX: was id="songs-list" which collided with the same ID used in script.js
-             for the public songs grid. Renamed to "songs-section" to avoid the conflict.
-             The actual grid div inside keeps id="admin-songs-list" which is what the script reads. -->
-        <section id="songs-section">
-            <h2>قائمة القصائد</h2>
-            <div id="admin-songs-list"></div>
+        <section id="songs-management">
+            <h2><i class="fas fa-list-ul"></i> إدارة القصائد الحالية</h2>
+            <div id="admin-songs-list" class="admin-grid">
+                </div>
         </section>
     </main>
+
+    <div id="edit-modal" class="modal" style="display:none">
+        <div class="modal-content card">
+            <h3>تعديل بيانات القصيدة</h3>
+            <input type="hidden" id="edit-song-id">
+            
+            <div class="form-group">
+                <label>الاسم الجديد</label>
+                <input type="text" id="edit-song-name">
+            </div>
+            
+            <div class="form-group">
+                <label>تغيير الصورة (اختياري)</label>
+                <input type="file" id="edit-song-image" accept="image/*">
+            </div>
+
+            <div class="modal-actions">
+                <button onclick="window.closeEditModal()" class="btn secondary-btn">إلغاء</button>
+                <button onclick="window.saveSongEdits()" class="btn success-btn">حفظ التغييرات</button>
+            </div>
+        </div>
+    </div>
 
     <footer>
         <div class="container">
@@ -49,7 +71,6 @@
         </div>
     </footer>
 
-    <!-- FIX: type="module" required because script.js uses ES module import -->
     <script type="module" src="script.js"></script>
 </body>
 </html>
