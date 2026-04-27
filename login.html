@@ -3,31 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asaib_Songs</title>
+    <title>Asaib_Songs | تسجيل الدخول</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body>
+<body class="login-body">
     <div class="login-container">
         <div class="login-card">
-            <h1><i class="fas fa-lock"></i> تسجيل الدخول</h1>
+            <div class="login-header">
+                <i class="fas fa-user-lock"></i>
+                <h1>تسجيل الدخول</h1>
+                <p>لوحة إدارة المحتوى</p>
+            </div>
             <form id="login-form">
                 <div class="form-group">
-                    <!-- FIX: was id="username", script.js reads id="email" -->
                     <label for="email">البريد الإلكتروني</label>
-                    <input type="email" id="email" required>
+                    <div class="input-wrapper">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="email" placeholder="example@mail.com" required>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="password">كلمة المرور</label>
-                    <input type="password" id="password" required>
+                    <div class="input-wrapper">
+                        <i class="fas fa-key"></i>
+                        <input type="password" id="password" placeholder="••••••••" required>
+                    </div>
                 </div>
-                <button type="submit" class="btn"><i class="fas fa-sign-in-alt"></i> دخول</button>
+                <button type="submit" class="btn login-btn">
+                    <span>دخول</span>
+                    <i class="fas fa-sign-in-alt"></i>
+                </button>
             </form>
             <p class="error-message" id="error-msg"></p>
+            <div class="login-footer">
+                <a href="index.html"><i class="fas fa-arrow-right"></i> العودة للرئيسية</a>
+            </div>
         </div>
     </div>
 
-    <!-- FIX: type="module" required because script.js uses ES module import -->
     <script type="module" src="script.js"></script>
 </body>
 </html>
