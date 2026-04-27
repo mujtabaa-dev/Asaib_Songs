@@ -1,11 +1,18 @@
 // Supabase SDK
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-// إعداد Supabase
 const supabaseUrl = 'https://kirfkztiymzpcwoskiic.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpcmZrenRpeW16cGN3b3NraWljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNDA2MDYsImV4cCI6MjA5MjcxNjYwNn0.DjpECA_pZLfJfIGK8EcKk2nfKW3KUrlEU8v6jvXrzto';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// ─── وظيفة مساعدة لتوليد اسم ملف فريد ──────────────────────────────────────────
+const generateUniqueName = (fileName) => {
+    const ext = fileName.split('.').pop();
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    return `${timestamp}-${randomStr}.${ext}`;
+};
 
 // ─── تسجيل الدخول ────────────────────────────────────────────────────────────
 document.getElementById('login-form')?.addEventListener('submit', async (e) => {
@@ -16,7 +23,7 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-        document.getElementById('error-msg').textContent = 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
+        document.getElementById('error-msg').textContent = 'فشل تسجيل الدخول: ' + error.message;
     } else {
         window.location.href = 'admin.html';
     }
@@ -24,11 +31,12 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
 
 // ─── حماية صفحة الإدارة ──────────────────────────────────────────────────────
 if (window.location.href.includes('admin.html')) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
         window.location.replace('login.html');
     } else {
-        document.getElementById('admin-main').style.display = '';
+        const adminMain = document.getElementById('admin-main');
+        if (adminMain) adminMain.style.display = 'block';
     }
 }
 
@@ -39,120 +47,102 @@ document.getElementById('add-song-btn')?.addEventListener('click', async () => {
     const imageFile = document.getElementById('song-image').files[0];
 
     if (!name || !audioFile || !imageFile) {
-        alert('الرجاء ملء جميع الحقول');
+        alert('الرجاء ملء جميع الحقول واختيار الملفات');
         return;
     }
 
+    // إظهار حالة التحميل (اختياري)
+    const btn = document.getElementById('add-song-btn');
+    btn.disabled = true;
+    btn.textContent = 'جاري الرفع...';
+
     try {
-        // رفع الصورة
-        const { error: imageError } = await supabase.storage
+        // 1. رفع الصورة باسم فريد
+        const imagePath = generateUniqueName(imageFile.name);
+        const { error: imgErr } = await supabase.storage
             .from('images')
-            .upload(imageFile.name, imageFile);
-        if (imageError) throw imageError;
+            .upload(imagePath, imageFile, { upsert: true });
+        
+        if (imgErr) throw new Error('خطأ في رفع الصورة: ' + imgErr.message);
+        const imageUrl = supabase.storage.from('images').getPublicUrl(imagePath).data.publicUrl;
 
-        const imageUrl = `${supabaseUrl}/storage/v1/object/public/images/${imageFile.name}`;
-
-        // رفع الأغنية
-        const { error: audioError } = await supabase.storage
+        // 2. رفع الأغنية باسم فريد
+        const audioPath = generateUniqueName(audioFile.name);
+        const { error: audErr } = await supabase.storage
             .from('audio')
-            .upload(audioFile.name, audioFile);
-        if (audioError) throw audioError;
+            .upload(audioPath, audioFile, { upsert: true });
 
-        const audioUrl = `${supabaseUrl}/storage/v1/object/public/audio/${audioFile.name}`;
+        if (audErr) throw new Error('خطأ في رفع الأغنية: ' + audErr.message);
+        const audioUrl = supabase.storage.from('audio').getPublicUrl(audioPath).data.publicUrl;
 
-        // حفظ في قاعدة البيانات
-        const { error } = await supabase
+        // 3. حفظ البيانات في جدول الـ Database
+        const { error: dbErr } = await supabase
             .from('songs')
-            .insert([{ name, imageUrl, audioUrl }]);
-        if (error) throw error;
+            .insert([{ 
+                name: name, 
+                imageUrl: imageUrl, 
+                audioUrl: audioUrl 
+            }]);
 
-        alert('تم إضافة الأغنية بنجاح!');
+        if (dbErr) throw new Error('خطأ في حفظ البيانات: ' + dbErr.message);
+
+        alert('تم رفع الأغنية وحفظ البيانات بنجاح!');
         location.reload();
+
     } catch (err) {
-        console.error('Error adding song:', err);
-        alert('حدث خطأ أثناء رفع الأغنية');
+        console.error('Upload Process Error:', err);
+        alert(err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'إضافة الأغنية';
     }
 });
 
 // ─── عرض الأغاني ─────────────────────────────────────────────────────────────
 async function displaySongs() {
-    const songsList     = document.getElementById('songs-list');
+    const songsList = document.getElementById('songs-list');
     const adminSongsList = document.getElementById('admin-songs-list');
 
     if (!songsList && !adminSongsList) return;
 
-    const { data, error } = await supabase.from('songs').select('*');
+    const { data, error } = await supabase.from('songs').select('*').order('created_at', { ascending: false });
+    
     if (error) {
-        console.error('Error fetching songs:', error);
+        console.error('Fetch error:', error);
         return;
     }
 
-    // عرض في الصفحة الرئيسية
-    if (songsList) {
-        songsList.innerHTML = '';
-        data.forEach(song => {
-            const card = document.createElement('div');
-            card.className = 'song-card';
-            card.innerHTML = `
-                <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
-                <div class="song-info">
-                    <h3 class="song-title">${song.name}</h3>
-                    <div class="song-controls">
-                        <audio controls>
-                            <source src="${song.audioUrl}" type="audio/mpeg">
-                        </audio>
-                        <a href="${song.audioUrl}" download>
-                            <i class="fas fa-download"></i> تنزيل
-                        </a>
-                    </div>
+    const renderCard = (song, isAdmin) => `
+        <div class="song-card">
+            <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
+            <div class="song-info">
+                <h3 class="song-title">${song.name}</h3>
+                <div class="song-controls">
+                    <audio controls><source src="${song.audioUrl}" type="audio/mpeg"></audio>
+                    ${isAdmin 
+                        ? `<button class="btn delete-btn" onclick="window.deleteSong('${song.id}')">حذف</button>` 
+                        : `<a href="${song.audioUrl}" download class="btn">تنزيل</a>`
+                    }
                 </div>
-            `;
-            songsList.appendChild(card);
-        });
-    }
+            </div>
+        </div>`;
 
-    // عرض في لوحة الإدارة
-    if (adminSongsList) {
-        adminSongsList.innerHTML = '';
-        data.forEach(song => {
-            const card = document.createElement('div');
-            card.className = 'song-card';
-            card.innerHTML = `
-                <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
-                <div class="song-info">
-                    <h3 class="song-title">${song.name}</h3>
-                    <div class="song-controls">
-                        <button class="btn" onclick="window.deleteSong('${song.id}')">
-                            <i class="fas fa-trash"></i> حذف
-                        </button>
-                    </div>
-                </div>
-            `;
-            adminSongsList.appendChild(card);
-        });
-    }
+    if (songsList) songsList.innerHTML = data.map(s => renderCard(s, false)).join('');
+    if (adminSongsList) adminSongsList.innerHTML = data.map(s => renderCard(s, true)).join('');
 }
 
 // ─── حذف أغنية ───────────────────────────────────────────────────────────────
-async function deleteSong(songId) {
+window.deleteSong = async (songId) => {
     if (!confirm('هل أنت متأكد من حذف هذه الأغنية؟')) return;
 
-    const { error } = await supabase
-        .from('songs')
-        .delete()
-        .eq('id', songId);
+    const { error } = await supabase.from('songs').delete().eq('id', songId);
 
     if (error) {
-        console.error('Error deleting song:', error);
-        alert('حدث خطأ أثناء حذف الأغنية');
+        alert('خطأ في الحذف: ' + error.message);
     } else {
-        alert('تم حذف الأغنية بنجاح!');
+        alert('تم الحذف بنجاح');
         location.reload();
     }
-}
+};
 
-// FIX: Expose deleteSong to window BEFORE calling displaySongs
-window.deleteSong = deleteSong;
-
-// ─── تشغيل العرض عند التحميل ─────────────────────────────────────────────────
 displaySongs();
