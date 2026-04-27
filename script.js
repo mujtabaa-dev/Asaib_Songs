@@ -23,16 +23,11 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
 });
 
 // ─── حماية صفحة الإدارة ──────────────────────────────────────────────────────
-// The <main> in admin.html starts as display:none.
-// We only reveal it AFTER Supabase confirms a live session.
-// This means: no JS = stays hidden, wrong/no session = redirect immediately.
 if (window.location.href.includes('admin.html')) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-        // Not authenticated — send to login, keep page blank
         window.location.replace('login.html');
     } else {
-        // Authenticated — reveal the admin UI
         document.getElementById('admin-main').style.display = '';
     }
 }
@@ -49,46 +44,40 @@ document.getElementById('add-song-btn')?.addEventListener('click', async () => {
     }
 
     try {
-        // FIX: prefix with timestamp to avoid "duplicate file name" rejection from Supabase
-        const timestamp = Date.now();
-        const imagePath = `${timestamp}_${imageFile.name}`;
-        const audioPath  = `${timestamp}_${audioFile.name}`;
-
         // رفع الصورة
         const { error: imageError } = await supabase.storage
             .from('images')
-            .upload(imagePath, imageFile, { upsert: true });
-        if (imageError) throw new Error(`خطأ في رفع الصورة: ${imageError.message}`);
+            .upload(imageFile.name, imageFile);
+        if (imageError) throw imageError;
 
-        const imageUrl = `${supabaseUrl}/storage/v1/object/public/images/${imagePath}`;
+        const imageUrl = `${supabaseUrl}/storage/v1/object/public/images/${imageFile.name}`;
 
         // رفع الأغنية
         const { error: audioError } = await supabase.storage
             .from('audio')
-            .upload(audioPath, audioFile, { upsert: true });
-        if (audioError) throw new Error(`خطأ في رفع الصوت: ${audioError.message}`);
+            .upload(audioFile.name, audioFile);
+        if (audioError) throw audioError;
 
-        const audioUrl = `${supabaseUrl}/storage/v1/object/public/audio/${audioPath}`;
+        const audioUrl = `${supabaseUrl}/storage/v1/object/public/audio/${audioFile.name}`;
 
         // حفظ في قاعدة البيانات
-        const { error: dbError } = await supabase
+        const { error } = await supabase
             .from('songs')
             .insert([{ name, imageUrl, audioUrl }]);
-        if (dbError) throw new Error(`خطأ في قاعدة البيانات: ${dbError.message}`);
+        if (error) throw error;
 
         alert('تم إضافة الأغنية بنجاح!');
         location.reload();
     } catch (err) {
         console.error('Error adding song:', err);
-        // FIX: show the real error message so you know exactly what failed
-        alert(`حدث خطأ:\n${err.message}`);
+        alert('حدث خطأ أثناء رفع الأغنية');
     }
 });
 
 // ─── عرض الأغاني ─────────────────────────────────────────────────────────────
 async function displaySongs() {
-    const songsList     = document.getElementById('songs-list');       // index.html
-    const adminSongsList = document.getElementById('admin-songs-list'); // admin.html
+    const songsList     = document.getElementById('songs-list');
+    const adminSongsList = document.getElementById('admin-songs-list');
 
     if (!songsList && !adminSongsList) return;
 
@@ -128,9 +117,6 @@ async function displaySongs() {
         data.forEach(song => {
             const card = document.createElement('div');
             card.className = 'song-card';
-            // FIX: onclick="deleteSong(...)" requires deleteSong on window.
-            //      Since this file is a module, functions are not auto-global.
-            //      We assign it to window below.
             card.innerHTML = `
                 <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
                 <div class="song-info">
@@ -165,8 +151,7 @@ async function deleteSong(songId) {
     }
 }
 
-// FIX: ES modules don't expose functions to global scope automatically.
-//      Expose deleteSong so inline onclick handlers in admin.html can call it.
+// FIX: Expose deleteSong to window BEFORE calling displaySongs
 window.deleteSong = deleteSong;
 
 // ─── تشغيل العرض عند التحميل ─────────────────────────────────────────────────
