@@ -20,7 +20,9 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     } else {
         // حفظ الجلسة في localStorage
         localStorage.setItem('supabaseUser', JSON.stringify(data.user));
-        window.location.href = 'admin.html';
+        setTimeout(() => {
+            window.location.href = 'admin.html';
+        }, 1000);
     }
 });
 
