@@ -1,54 +1,48 @@
 // Supabase SDK
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
+// إعداد Supabase
 const supabaseUrl = 'https://kirfkztiymzpcwoskiic.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpcmZrenRpeW16cGN3b3NraWljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNDA2MDYsImV4cCI6MjA5MjcxNjYwNn0.DjpECA_pZLfJfIGK8EcKk2nfKW3KUrlEU8v6jvXrzto';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// ─── تسجيل الدخول ────────────────────────────────────────────────────────────
+// ─── تسجيل الدخول ───────────────────────────────────────────
 document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
-    const errorMsg = document.getElementById('error-msg');
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-        errorMsg.textContent = 'خطأ: ' + error.message;
+        document.getElementById('error-msg').textContent = 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
     } else {
         window.location.href = 'admin.html';
     }
 });
 
-// ─── حماية صفحة الإدارة ──────────────────────────────────────────────────────
-async function checkAuth() {
-    if (window.location.href.includes('admin.html')) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            window.location.replace('login.html');
-        } else {
-            const adminMain = document.getElementById('admin-main');
-            if(adminMain) adminMain.style.display = 'block';
-        }
+// ─── حماية صفحة الإدارة ──────────────────────────────────────
+if (window.location.href.includes('admin.html')) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        window.location.replace('login.html');
+    } else {
+        document.getElementById('admin-main').style.display = '';
     }
 }
-checkAuth();
 
-// ─── تحضير التعديل (ملء النموذج ببيانات الأغنية) ──────────────────────────────
+// ─── وظيفة تجهيز التعديل (تحميل البيانات للنموذج) ─────────────────────────────
 window.prepareEdit = (id, name) => {
     document.getElementById('song-name').value = name;
     const btn = document.getElementById('add-song-btn');
-    btn.textContent = 'تحديث الأغنية الحالية';
-    btn.classList.add('btn-update'); // تمييز الزر لونياً
+    btn.innerHTML = '<i class="fas fa-save"></i> تحديث القصيدة الحالية';
+    btn.style.background = '#f39c12'; // تغيير اللون للتمييز
     btn.dataset.editId = id; // تخزين المعرف للتعديل
-    
-    // التمرير للأعلى للنموذج
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // الصعود للنموذج
 };
 
-// ─── إضافة أو تحديث أغنية ────────────────────────────────────────────────────
+// ─── إضافة أو تحديث أغنية ────────────────────────────────────
 document.getElementById('add-song-btn')?.addEventListener('click', async () => {
     const name = document.getElementById('song-name').value;
     const audioFile = document.getElementById('song-audio').files[0];
@@ -57,7 +51,7 @@ document.getElementById('add-song-btn')?.addEventListener('click', async () => {
     const editId = btn.dataset.editId;
 
     if (!name) {
-        alert('الرجاء إدخال اسم الأغنية');
+        alert('الرجاء إدخال اسم القصيدة على الأقل');
         return;
     }
 
@@ -65,121 +59,104 @@ document.getElementById('add-song-btn')?.addEventListener('click', async () => {
         btn.disabled = true;
         btn.textContent = 'جاري المعالجة...';
 
-        let updateData = { name };
+        let songData = { name };
 
-        // رفع الصورة إذا تم اختيار ملف جديد
+        // رفع الصورة فقط إذا تم اختيار ملف جديد
         if (imageFile) {
-            const imgPath = `${Date.now()}_img.${imageFile.name.split('.').pop()}`;
+            const imgPath = `img_${Date.now()}_${imageFile.name}`;
             const { error: imgErr } = await supabase.storage.from('images').upload(imgPath, imageFile);
             if (imgErr) throw imgErr;
-            updateData.imageUrl = supabase.storage.from('images').getPublicUrl(imgPath).data.publicUrl;
+            songData.imageUrl = supabase.storage.from('images').getPublicUrl(imgPath).data.publicUrl;
         }
 
-        // رفع الأغنية إذا تم اختيار ملف جديد
+        // رفع الصوت فقط إذا تم اختيار ملف جديد
         if (audioFile) {
-            const audPath = `${Date.now()}_audio.${audioFile.name.split('.').pop()}`;
+            const audPath = `aud_${Date.now()}_${audioFile.name}`;
             const { error: audErr } = await supabase.storage.from('audio').upload(audPath, audioFile);
             if (audErr) throw audErr;
-            updateData.audioUrl = supabase.storage.from('audio').getPublicUrl(audPath).data.publicUrl;
+            songData.audioUrl = supabase.storage.from('audio').getPublicUrl(audPath).data.publicUrl;
         }
 
         if (editId) {
-            // حالة التعديل
-            const { error } = await supabase.from('songs').update(updateData).eq('id', editId);
+            // تنفيذ التحديث (Update)
+            const { error } = await supabase.from('songs').update(songData).eq('id', editId);
             if (error) throw error;
-            alert('تم تحديث الأغنية بنجاح!');
+            alert('تم تحديث القصيدة بنجاح!');
         } else {
-            // حالة إضافة جديدة
-            if (!audioFile || !imageFile) {
-                alert('الرجاء اختيار ملف الصوت والصورة للأغنية الجديدة');
-                btn.disabled = false;
-                btn.textContent = 'إضافة الأغنية';
-                return;
-            }
-            const { error } = await supabase.from('songs').insert([updateData]);
+            // تنفيذ الإضافة (Insert)
+            if (!audioFile || !imageFile) throw new Error('يجب اختيار ملفات للقصيدة الجديدة');
+            const { error } = await supabase.from('songs').insert([songData]);
             if (error) throw error;
-            alert('تمت إضافة الأغنية بنجاح!');
+            alert('تمت إضافة القصيدة بنجاح!');
         }
 
         location.reload();
-
     } catch (err) {
-        console.error('Full Error:', err);
+        console.error('Operation failed:', err);
         alert('حدث خطأ: ' + err.message);
     } finally {
         btn.disabled = false;
-        btn.textContent = editId ? 'تحديث الأغنية الحالية' : 'إضافة الأغنية';
     }
 });
 
-// ─── عرض الأغاني ─────────────────────────────────────────────────────────────
+// ─── عرض الأغاني ─────────────────────────────────────────────
 async function displaySongs() {
-    const songsList = document.getElementById('songs-list');
+    const songsList = document.getElementById('songs-list'); 
     const adminSongsList = document.getElementById('admin-songs-list');
 
     if (!songsList && !adminSongsList) return;
 
-    const { data, error } = await supabase
-        .from('songs')
-        .select('*')
-        .order('createdAt', { ascending: false });
-
+    // جلب البيانات مرتبة حسب الأحدث
+    const { data, error } = await supabase.from('songs').select('*').order('createdAt', { ascending: false });
     if (error) {
-        console.error('Error fetching songs:', error);
+        console.error('Error fetching:', error);
         return;
     }
 
-    const render = (container, isAdmin) => {
-        if (!container) return;
-        
-        if (data.length === 0) {
-            container.innerHTML = '<p style="text-align:center; color:white; padding:20px;">لا توجد أغاني حالياً</p>';
-            return;
-        }
-
-        container.innerHTML = data.map(song => `
+    // عرض في الصفحة الرئيسية
+    if (songsList) {
+        songsList.innerHTML = data.map(song => `
             <div class="song-card">
                 <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
                 <div class="song-info">
                     <h3 class="song-title">${song.name}</h3>
                     <div class="song-controls">
                         <audio controls><source src="${song.audioUrl}" type="audio/mpeg"></audio>
-                        ${isAdmin 
-                            ? `
-                               <div style="display: flex; gap: 5px; margin-top: 10px;">
-                                   <button class="btn" style="background:#f39c12" onclick="prepareEdit('${song.id}', '${song.name}')">
-                                       تعديل
-                                   </button>
-                                   <button class="btn btn-danger" onclick="deleteSong('${song.id}')">
-                                       حذف
-                                   </button>
-                               </div>
-                              `
-                            : `<a href="${song.audioUrl}" download class="btn">تنزيل</a>`
-                        }
+                        <a href="${song.audioUrl}" download><i class="fas fa-download"></i> تنزيل</a>
                     </div>
                 </div>
             </div>
         `).join('');
-    };
+    }
 
-    render(songsList, false);
-    render(adminSongsList, true);
+    // عرض في لوحة الإدارة مع أزرار التعديل والحذف
+    if (adminSongsList) {
+        adminSongsList.innerHTML = data.map(song => `
+            <div class="song-card">
+                <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
+                <div class="song-info">
+                    <h3 class="song-title">${song.name}</h3>
+                    <div class="song-controls" style="display: flex; flex-direction: column; gap: 5px;">
+                        <button class="btn" style="background:#f39c12; width:100%;" onclick="window.prepareEdit('${song.id}', '${song.name}')">
+                            <i class="fas fa-edit"></i> تعديل
+                        </button>
+                        <button class="btn btn-danger" style="background:#e74c3c; width:100%;" onclick="window.deleteSong('${song.id}')">
+                            <i class="fas fa-trash"></i> حذف
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
 }
 
-// ─── حذف الأغنية ─────────────────────────────────────────────────────────────
-window.deleteSong = async (songId) => {
-    if (!confirm('هل أنت متأكد من حذف هذه الأغنية؟')) return;
+// ─── حذف أغنية ──────────────────────────────────────
+async function deleteSong(songId) {
+    if (!confirm('هل أنت متأكد من حذف هذه القصيدة؟')) return;
+    const { error } = await supabase.from('songs').delete().eq('id', songId);
+    if (error) alert('خطأ في الحذف');
+    else location.reload();
+}
 
-    try {
-        const { error } = await supabase.from('songs').delete().eq('id', songId);
-        if (error) throw error;
-        alert('تم حذف الأغنية');
-        location.reload();
-    } catch (err) {
-        alert('خطأ في الحذف: ' + err.message);
-    }
-};
-
-// التشغيل عند التحميل
-document.addEventListener('DOMContentLoaded', displaySongs);
+window.deleteSong = deleteSong;
+displaySongs();
