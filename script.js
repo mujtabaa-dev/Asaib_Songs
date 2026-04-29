@@ -22,7 +22,7 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     }
 });
 
-// ─── حماية صفحة الإدارة (فحص الجلسة الحقيقية) ───────────────────────────────────
+// ─── حماية صفحة الإدارة ──────────────────────────────────────────────────────
 async function checkAuth() {
     if (window.location.href.includes('admin.html')) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -52,7 +52,7 @@ document.getElementById('add-song-btn')?.addEventListener('click', async () => {
         btn.disabled = true;
         btn.textContent = 'جاري الرفع...';
 
-        // 1. رفع الصورة باسم فريد
+        // 1. رفع الصورة باسم فريد لمنع تكرار الأسماء
         const imageExt = imageFile.name.split('.').pop();
         const imagePath = `${Date.now()}_img.${imageExt}`;
         
@@ -74,7 +74,7 @@ document.getElementById('add-song-btn')?.addEventListener('click', async () => {
 
         const audioUrl = supabase.storage.from('audio').getPublicUrl(audioPath).data.publicUrl;
 
-        // 3. حفظ البيانات في جدول songs
+        // 3. حفظ البيانات في جدول songs (استخدام الحقول الصحيحة)
         const { error: dbErr } = await supabase
             .from('songs')
             .insert([{ name, imageUrl, audioUrl }]);
@@ -84,7 +84,7 @@ document.getElementById('add-song-btn')?.addEventListener('click', async () => {
         location.reload();
 
     } catch (err) {
-        console.error('Full Error:', err);
+        console.error('Full Error Detail:', err);
         alert(err.message || 'حدث خطأ غير متوقع');
     } finally {
         btn.disabled = false;
@@ -97,15 +97,25 @@ async function displaySongs() {
     const songsList = document.getElementById('songs-list');
     const adminSongsList = document.getElementById('admin-songs-list');
 
+    // تم تغيير الترتيب هنا من created_at إلى createdAt ليتطابق مع صور قاعدة بياناتك
     const { data, error } = await supabase
         .from('songs')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('createdAt', { ascending: false });
 
-    if (error) return console.error('Error:', error);
+    if (error) {
+        console.error('Error fetching songs:', error);
+        return;
+    }
 
     const render = (container, isAdmin) => {
         if (!container) return;
+        
+        if (data.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color:white; width:100%;">لا توجد أغاني حالياً</p>';
+            return;
+        }
+
         container.innerHTML = data.map(song => `
             <div class="song-card">
                 <img src="${song.imageUrl}" alt="${song.name}" class="song-image">
@@ -127,18 +137,19 @@ async function displaySongs() {
     render(adminSongsList, true);
 }
 
-// ─── وظيفة الحذف (Global لتصل إليها الأزرار) ───────────────────────────────────
+// ─── وظيفة الحذف ──────────────────────────────────────────────────────────────
 window.deleteSong = async (songId) => {
-    if (!confirm('هل أنت متأكد؟')) return;
+    if (!confirm('هل أنت متأكد من حذف هذه الأغنية؟')) return;
 
     try {
         const { error } = await supabase.from('songs').delete().eq('id', songId);
         if (error) throw error;
-        alert('تم الحذف');
+        alert('تم الحذف بنجاح');
         location.reload();
     } catch (err) {
         alert('خطأ في الحذف: ' + err.message);
     }
 };
 
-displaySongs();
+// تشغيل جلب البيانات عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', displaySongs);
