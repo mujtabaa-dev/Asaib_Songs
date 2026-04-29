@@ -36,59 +36,79 @@ async function checkAuth() {
 }
 checkAuth();
 
-// ─── إضافة أغنية جديدة ───────────────────────────────────────────────────────
+// ─── تحضير التعديل (ملء النموذج ببيانات الأغنية) ──────────────────────────────
+window.prepareEdit = (id, name) => {
+    document.getElementById('song-name').value = name;
+    const btn = document.getElementById('add-song-btn');
+    btn.textContent = 'تحديث الأغنية الحالية';
+    btn.classList.add('btn-update'); // تمييز الزر لونياً
+    btn.dataset.editId = id; // تخزين المعرف للتعديل
+    
+    // التمرير للأعلى للنموذج
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// ─── إضافة أو تحديث أغنية ────────────────────────────────────────────────────
 document.getElementById('add-song-btn')?.addEventListener('click', async () => {
     const name = document.getElementById('song-name').value;
     const audioFile = document.getElementById('song-audio').files[0];
     const imageFile = document.getElementById('song-image').files[0];
     const btn = document.getElementById('add-song-btn');
+    const editId = btn.dataset.editId;
 
-    if (!name || !audioFile || !imageFile) {
-        alert('الرجاء ملء جميع الحقول واختيار الملفات');
+    if (!name) {
+        alert('الرجاء إدخال اسم الأغنية');
         return;
     }
 
     try {
         btn.disabled = true;
-        btn.textContent = 'جاري الرفع...';
+        btn.textContent = 'جاري المعالجة...';
 
-        // 1. رفع الصورة باسم فريد لمنع تكرار الأسماء
-        const imageExt = imageFile.name.split('.').pop();
-        const imagePath = `${Date.now()}_img.${imageExt}`;
-        
-        const { error: imgErr } = await supabase.storage
-            .from('images')
-            .upload(imagePath, imageFile);
-        if (imgErr) throw new Error('فشل رفع الصورة: ' + imgErr.message);
+        let updateData = { name };
 
-        const imageUrl = supabase.storage.from('images').getPublicUrl(imagePath).data.publicUrl;
+        // رفع الصورة إذا تم اختيار ملف جديد
+        if (imageFile) {
+            const imgPath = `${Date.now()}_img.${imageFile.name.split('.').pop()}`;
+            const { error: imgErr } = await supabase.storage.from('images').upload(imgPath, imageFile);
+            if (imgErr) throw imgErr;
+            updateData.imageUrl = supabase.storage.from('images').getPublicUrl(imgPath).data.publicUrl;
+        }
 
-        // 2. رفع الأغنية باسم فريد
-        const audioExt = audioFile.name.split('.').pop();
-        const audioPath = `${Date.now()}_audio.${audioExt}`;
+        // رفع الأغنية إذا تم اختيار ملف جديد
+        if (audioFile) {
+            const audPath = `${Date.now()}_audio.${audioFile.name.split('.').pop()}`;
+            const { error: audErr } = await supabase.storage.from('audio').upload(audPath, audioFile);
+            if (audErr) throw audErr;
+            updateData.audioUrl = supabase.storage.from('audio').getPublicUrl(audPath).data.publicUrl;
+        }
 
-        const { error: audErr } = await supabase.storage
-            .from('audio')
-            .upload(audioPath, audioFile);
-        if (audErr) throw new Error('فشل رفع الأغنية: ' + audErr.message);
+        if (editId) {
+            // حالة التعديل
+            const { error } = await supabase.from('songs').update(updateData).eq('id', editId);
+            if (error) throw error;
+            alert('تم تحديث الأغنية بنجاح!');
+        } else {
+            // حالة إضافة جديدة
+            if (!audioFile || !imageFile) {
+                alert('الرجاء اختيار ملف الصوت والصورة للأغنية الجديدة');
+                btn.disabled = false;
+                btn.textContent = 'إضافة الأغنية';
+                return;
+            }
+            const { error } = await supabase.from('songs').insert([updateData]);
+            if (error) throw error;
+            alert('تمت إضافة الأغنية بنجاح!');
+        }
 
-        const audioUrl = supabase.storage.from('audio').getPublicUrl(audioPath).data.publicUrl;
-
-        // 3. حفظ البيانات في جدول songs (استخدام الحقول الصحيحة)
-        const { error: dbErr } = await supabase
-            .from('songs')
-            .insert([{ name, imageUrl, audioUrl }]);
-        if (dbErr) throw dbErr;
-
-        alert('تمت الإضافة بنجاح!');
         location.reload();
 
     } catch (err) {
-        console.error('Full Error Detail:', err);
-        alert(err.message || 'حدث خطأ غير متوقع');
+        console.error('Full Error:', err);
+        alert('حدث خطأ: ' + err.message);
     } finally {
         btn.disabled = false;
-        btn.textContent = 'إضافة الأغنية';
+        btn.textContent = editId ? 'تحديث الأغنية الحالية' : 'إضافة الأغنية';
     }
 });
 
@@ -97,7 +117,8 @@ async function displaySongs() {
     const songsList = document.getElementById('songs-list');
     const adminSongsList = document.getElementById('admin-songs-list');
 
-    // تم تغيير الترتيب هنا من created_at إلى createdAt ليتطابق مع صور قاعدة بياناتك
+    if (!songsList && !adminSongsList) return;
+
     const { data, error } = await supabase
         .from('songs')
         .select('*')
@@ -112,7 +133,7 @@ async function displaySongs() {
         if (!container) return;
         
         if (data.length === 0) {
-            container.innerHTML = '<p style="text-align:center; color:white; width:100%;">لا توجد أغاني حالياً</p>';
+            container.innerHTML = '<p style="text-align:center; color:white; padding:20px;">لا توجد أغاني حالياً</p>';
             return;
         }
 
@@ -124,7 +145,16 @@ async function displaySongs() {
                     <div class="song-controls">
                         <audio controls><source src="${song.audioUrl}" type="audio/mpeg"></audio>
                         ${isAdmin 
-                            ? `<button class="btn btn-danger" onclick="deleteSong('${song.id}')">حذف</button>`
+                            ? `
+                               <div style="display: flex; gap: 5px; margin-top: 10px;">
+                                   <button class="btn" style="background:#f39c12" onclick="prepareEdit('${song.id}', '${song.name}')">
+                                       تعديل
+                                   </button>
+                                   <button class="btn btn-danger" onclick="deleteSong('${song.id}')">
+                                       حذف
+                                   </button>
+                               </div>
+                              `
                             : `<a href="${song.audioUrl}" download class="btn">تنزيل</a>`
                         }
                     </div>
@@ -137,19 +167,19 @@ async function displaySongs() {
     render(adminSongsList, true);
 }
 
-// ─── وظيفة الحذف ──────────────────────────────────────────────────────────────
+// ─── حذف الأغنية ─────────────────────────────────────────────────────────────
 window.deleteSong = async (songId) => {
     if (!confirm('هل أنت متأكد من حذف هذه الأغنية؟')) return;
 
     try {
         const { error } = await supabase.from('songs').delete().eq('id', songId);
         if (error) throw error;
-        alert('تم الحذف بنجاح');
+        alert('تم حذف الأغنية');
         location.reload();
     } catch (err) {
         alert('خطأ في الحذف: ' + err.message);
     }
 };
 
-// تشغيل جلب البيانات عند تحميل الصفحة
+// التشغيل عند التحميل
 document.addEventListener('DOMContentLoaded', displaySongs);
