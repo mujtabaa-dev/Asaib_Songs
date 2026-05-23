@@ -9,6 +9,7 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+
 // ─── عناصر واجهة المستخدم المشتركة ───────────────────
 const getEl = (id) => document.getElementById(id);
 const showLoading = (btn) => {
@@ -29,6 +30,63 @@ const showError = (msg) => {
         setTimeout(() => errorEl.style.display = 'none', 5000);
     }
 };
+
+// ─── تسجيل معلومات الزوار ─────────────────────────────
+async function logVisitor() {
+    try {
+        // الحصول على عنوان IP
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipResponse.json();
+        const ip = ipData.ip || 'unknown';
+
+        // الحصول على User-Agent
+        const userAgent = navigator.userAgent || 'unknown';
+
+        // إنشاء سجل الزائر
+        const timestamp = new Date().toISOString();
+        const logEntry = `[${timestamp}] IP: ${ip} | User-Agent: ${userAgent}\n`;
+
+        // رفع الملف إلى Supabase Storage
+        const bucketName = 'logs';
+        const fileName = 'visitors_log.txt';
+        
+        // جلب المحتوى الحالي إذا كان الملف موجوداً
+        let currentContent = '';
+        try {
+            const { data } = await supabase.storage
+                .from(bucketName)
+                .download(fileName);
+            currentContent = data ? await data.text() : '';
+        } catch (error) {
+            // تجاهل خطأ "الملف غير موجود"
+            if (!error.message.includes('not found')) throw error;
+        }
+
+        // إضافة السجل الجديد
+        const newContent = currentContent + logEntry;
+        const blob = new Blob([newContent], { type: 'text/plain' });
+        
+        const { error } = await supabase.storage
+            .from(bucketName)
+            .upload(fileName, blob, { upsert: true });
+
+        if (error) throw error;
+        
+    } catch (err) {
+        console.error('فشل تسجيل الزائر:', err);
+    }
+}
+
+// ─── استدعاء دالة التسجيل عند تحميل الصفحة ─────────────
+document.addEventListener('DOMContentLoaded', () => {
+    // تسجيل الزوار
+    logVisitor();
+    
+    // إظهار الأغاني
+    displaySongs();
+    
+    // ... باقي الكود الموجود ...
+});
 
 // ─── تسجيل الدخول ───────────────────────────────────
 getEl('login-form')?.addEventListener('submit', async (e) => {
